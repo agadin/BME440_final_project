@@ -2,7 +2,7 @@
 This repository will explore the use of machine learning models to predict tumor type using brain scan images.
 
 # Data
-The data used in this project is from the [Brain Tumor Classification dataset](https://www.kaggle.com/sartajbhuvaji/brain-tumor-classification-mri) on Kaggle. This dataset contains 3,253 brain MRI images of 4 classes: glioma, meningioma, pituitary, and no tumor. The images are in .jpg format and are 512x512 pixels.
+The data used in this project is from the [Brain Tumor Classification dataset](https://www.kaggle.com/sartajbhuvaji/brain-tumor-classification-mri) on Kaggle. This dataset contains 3,253 brain MRI images of 4 classes: glioma, meningioma, pituitary, and no tumor. The images are in .jpg format and are 512x512 pixels. The dataset is split into a training set and a testing set. The training set contains 2,288 images and the testing set contains 965 images. The dataset also contains a .csv file that contains the image file names and their corresponding labels.
 
 ## Downloading the Data
 To download the data, you can use the Kaggle API. First, you need to install kagglehub by running the following command:
