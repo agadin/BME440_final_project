@@ -1,6 +1,17 @@
 # Overview
 This repository will explore the use of machine learning models to predict tumor type using brain scan images.
 
+# Data
+The data used in this project is from the [Brain Tumor Classification dataset](https://www.kaggle.com/sartajbhuvaji/brain-tumor-classification-mri) on Kaggle. This dataset contains 3,253 brain MRI images of 4 classes: glioma, meningioma, pituitary, and no tumor. The images are in .jpg format and are 512x512 pixels.
+
+## Downloading the Data
+To download the data, you can use the Kaggle API. First, you need to install kagglehub by running the following command:
+```
+pip install kaggle
+```
+Then, you need to create a Kaggle API key by going to your Kaggle account, clicking on "Create New API Token", and saving the file to your computer in the folder at `~/.kaggle` (to find this folder easily on mac use the press command+shift+g and input `~/.kaggle`). Finally, you can download the data by running the `dowbload_dataset.py` script in pycharm.
+
+
 ## timeline
 1. Develop prelim model to predict tumor type using brain scan images 
 2. Develop new pre-processing techniques to improve prelim model performance 
