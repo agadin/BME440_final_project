@@ -1,1 +1,7 @@
 kagglehub
+tensorflow~=2.18.0
+keras
+numpy~=2.0.2
+requests~=2.32.3
+Pillow
+scipy
