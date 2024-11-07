@@ -5,3 +5,4 @@ numpy~=2.0.2
 requests~=2.32.3
 Pillow
 scipy
+matplotlib

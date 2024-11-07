@@ -10,6 +10,8 @@ from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense,
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
+import matplotlib.pyplot as plt
+
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -116,7 +118,25 @@ test_loss, test_acc = model.evaluate(test_generator)
 print(f'Test accuracy: {test_acc:.4f}')
 
 # Save the model
-model.save('brain_tumor_classification_model.h5')
+model.save('brain_tumor_classification_model.keras')
 
-# Save the model
-keras.saving.save_mode(model, 'brain_tumor_classification_model.h5')
+# Plot training & validation accuracy values
+plt.figure(figsize=(12, 4))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('Model accuracy')
+plt.ylabel('Accuracy')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper left')
+
+# Plot training & validation loss values
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper left')
+
+plt.show()
