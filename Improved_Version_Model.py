@@ -1,7 +1,8 @@
 import keras
 from keras import Model
 from keras.api import layers
-from keras.src.utils.image_utils import img_to_array, load_img
+from keras.src.utils.image_utils import img_to_array
+from keras.src.utils.image_utils import load_img
 from keras.src.legacy.preprocessing.image import ImageDataGenerator
 from keras.src.utils.numerical_utils import to_categorical
 import numpy as np
@@ -23,6 +24,7 @@ CATEGORIES = [
     "no_tumor", "notumor", "pituitary", "pituitary_tumor"
 ]
 
+
 # Model Definition
 def build_model(input_shape, num_classes):
     model = keras.Sequential([
@@ -43,6 +45,7 @@ def build_model(input_shape, num_classes):
     ])
     return model
 
+
 # Data Preparation
 def load_data(dataset_path, subset, categories):
     images, labels = [], []
@@ -62,6 +65,7 @@ def load_data(dataset_path, subset, categories):
             except Exception as e:
                 print(f"Error loading image {image_name}: {e}")
     return np.array(images), np.array(labels)
+
 
 train_images, train_labels = load_data(DATASET_PATH, "Training", CATEGORIES)
 test_images, test_labels = load_data(DATASET_PATH, "Testing", CATEGORIES)
@@ -94,15 +98,16 @@ history = model.fit(train_generator,
 
 # Save Model
 SAVE_PATH = 'brain_tumor_classifier.keras'
-save_dir = os.path.dirname(SAVE_PATH) or '.'  # Default to current directory if no directory is specified
-os.makedirs(save_dir, exist_ok=True)
-
-model.save(SAVE_PATH)
-print(f"Model saved successfully at {SAVE_PATH}")
+if os.access(os.path.dirname(SAVE_PATH) or '.', os.W_OK):
+    model.save(SAVE_PATH)
+    print(f"Model saved successfully at {SAVE_PATH}")
+else:
+    print(f"Write permission denied for directory: {os.path.dirname(SAVE_PATH)}")
 
 # Evaluate Model
 loss, accuracy = model.evaluate(val_generator)
 print(f"Validation Loss: {loss}, Validation Accuracy: {accuracy}")
+
 
 # Plot Training History
 def plot_history(history):
@@ -123,7 +128,32 @@ def plot_history(history):
     plt.legend()
     plt.show()
 
+
 plot_history(history)
+
+
+# Grad-CAM Visualization
+def generate_gradcam_heatmap(model, image, class_idx):
+    target_layer_name = "conv2d_2"  # Ensure this is the correct layer name
+    target_layer = model.get_layer(target_layer_name)
+
+    grad_model = Model(
+        inputs=[model.inputs],
+        outputs=[target_layer.output, model.output]
+    )
+
+    with tf.GradientTape() as tape:
+        conv_outputs, predictions = grad_model(tf.expand_dims(image, 0))
+        loss = predictions[:, class_idx]
+
+    grads = tape.gradient(loss, conv_outputs)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+    conv_outputs = conv_outputs[0]
+    heatmap = tf.reduce_sum(tf.multiply(pooled_grads, conv_outputs), axis=-1)
+    heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
+    return heatmap.numpy()
+
 
 def plot_gradcam(image, heatmap):
     plt.figure(figsize=(8, 8))
@@ -132,17 +162,28 @@ def plot_gradcam(image, heatmap):
     plt.axis("off")
     plt.title("Original Image")
     plt.subplot(1, 2, 2)
-    plt.imshow(image)
-    plt.imshow(heatmap, cmap="jet", alpha=0.5)  # Overlay heatmap with colormap
+    heatmap = np.uint8(255 * heatmap)
+    heatmap = np.expand_dims(heatmap, axis=-1)
+    overlay = np.uint8(0.6 * heatmap + 0.4 * image * 255)
+    plt.imshow(overlay)
     plt.axis("off")
     plt.title("Grad-CAM Heatmap Overlay")
     plt.show()
 
-# Load the model and prepare for Grad-CAM
-model = keras.models.load_model(SAVE_PATH)
 
-# Grad-CAM Visualization
+# Load the model and initialize it
+model = keras.models.load_model('brain_tumor_classifier.keras')
+dummy_input = np.zeros((1, IMG_SIZE, IMG_SIZE, 3))
+_ = model.predict(dummy_input)
+
+# Prepare sample image for Grad-CAM
 sample_image = x_val[0]
-predicted_class = np.argmax(model.predict(np.expand_dims(sample_image, axis=0)))
+sample_image = np.expand_dims(sample_image, axis=0)
+
+# Predict class for Grad-CAM
+predicted_class = np.argmax(model.predict(sample_image))
 print(f"Predicted Class: {CATEGORIES[predicted_class]}")
 
+# Generate and plot Grad-CAM
+heatmap = generate_gradcam_heatmap(model, sample_image[0], predicted_class)
+plot_gradcam(sample_image[0], heatmap)
