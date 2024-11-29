@@ -1,21 +1,29 @@
 import os
+import requests
+import json
 import zipfile
-import subprocess
 
 # Ensure the dataset directory exists
 os.makedirs('dataset', exist_ok=True)
 
-# Path to save the dataset zip
+# Load Kaggle API credentials
+with open(os.path.expanduser('~/.kaggle/kaggle.json')) as f:
+    kaggle_api = json.load(f)
+
+# Define the URL and headers for the request
+url = 'https://www.kaggle.com/api/v1/datasets/download/masoudnickparvar/brain-tumor-mri-dataset'
+headers = {
+    'Authorization': f"Bearer {kaggle_api['key']}"
+}
+
+# Download the dataset
+response = requests.get(url, headers=headers, stream=True)
 zip_path = os.path.join('dataset', 'brain-tumor-mri-dataset.zip')
 
-# Use the Kaggle CLI to download the dataset
-try:
-    subprocess.run(
-        ['kaggle', 'datasets', 'download', '-d', 'masoudnickparvar/brain-tumor-mri-dataset', '-p', 'dataset'],
-        check=True
-    )
-except FileNotFoundError:
-    raise RuntimeError("The Kaggle CLI is not installed or not found in your PATH. Install it using `pip install kaggle`.")
+# Save the dataset to the specified path
+with open(zip_path, 'wb') as f:
+    for chunk in response.iter_content(chunk_size=8192):
+        f.write(chunk)
 
 # Unzip the downloaded file
 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
