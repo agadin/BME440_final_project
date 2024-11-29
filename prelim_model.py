@@ -1,142 +1,125 @@
-# This will be a preliminary model to ingest the images and simply predict whether the image in the dataset folder
-# put all required libraries in requirements.txt
-# run the following command to install all required libraries
-# pip install -r requirements.txt
-
-import os
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.optimizers import Adam
+import numpy as np
+import os
 import matplotlib.pyplot as plt
-
 
 # Set random seed for reproducibility
 np.random.seed(42)
 tf.random.set_seed(42)
 
-# Define constants
+# Constants
 IMG_HEIGHT, IMG_WIDTH = 150, 150
 BATCH_SIZE = 32
 EPOCHS = 20
+LEARNING_RATE = 0.001
+DATASET_PATH = os.path.expanduser("~/PycharmProjects/BME440_final_project/dataset")  # Adapted path to your dataset
 
-# Define data directories
-base_path = "./dataset"  # Update this path to your dataset location
-train_dir = os.path.join(base_path, 'Training')
-test_dir = os.path.join(base_path, 'Testing')
+# Define data augmentation using tf.image
+def preprocess_image(file_path, label, augment=False):
+    image = tf.io.read_file(file_path)
+    image = tf.image.decode_jpeg(image, channels=3)
+    image = tf.image.resize(image, [IMG_HEIGHT, IMG_WIDTH])
+    if augment:
+        image = tf.image.random_flip_left_right(image)
+        image = tf.image.random_brightness(image, 0.2)
+        image = tf.image.random_contrast(image, 0.8, 1.2)
+    image /= 255.0  # Normalize
+    return image, label
 
-# Create image data generators with data augmentation for training
-train_datagen = ImageDataGenerator(
-    rescale=1./255,
-    rotation_range=20,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    shear_range=0.2,
-    zoom_range=0.2,
-    horizontal_flip=True,
-    fill_mode='nearest',
-    validation_split=0.2  # Split training data into training and validation sets
-)
+# Load dataset from directory
+def load_dataset(data_dir):
+    class_names = sorted(
+        [
+            entry for entry in os.listdir(data_dir)
+            if os.path.isdir(os.path.join(data_dir, entry))
+        ]
+    )
+    file_paths, labels = [], []
+    for idx, class_name in enumerate(class_names):
+        class_dir = os.path.join(data_dir, class_name)
+        for file_name in os.listdir(class_dir):
+            file_path = os.path.join(class_dir, file_name)
+            if os.path.isfile(file_path):  # Ensure it's a file
+                file_paths.append(file_path)
+                labels.append(idx)
+    return file_paths, labels, class_names
 
-test_datagen = ImageDataGenerator(rescale=1./255)
 
-# Create train, validation, and test generators
-train_generator = train_datagen.flow_from_directory(
-    train_dir,
-    target_size=(IMG_HEIGHT, IMG_WIDTH),
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    subset='training'  # Set as training data
-)
+# Prepare data
+train_dir = os.path.join(DATASET_PATH, 'Training')
+test_dir = os.path.join(DATASET_PATH, 'Testing')
 
-validation_generator = train_datagen.flow_from_directory(
-    train_dir,
-    target_size=(IMG_HEIGHT, IMG_WIDTH),
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    subset='validation'  # Set as validation data
-)
+train_files, train_labels, class_names = load_dataset(train_dir)
+train_labels = tf.one_hot(train_labels, depth=len(class_names))
 
-test_generator = test_datagen.flow_from_directory(
-    test_dir,
-    target_size=(IMG_HEIGHT, IMG_WIDTH),
-    batch_size=BATCH_SIZE,
-    class_mode='categorical'
-)
+test_files, test_labels, _ = load_dataset(test_dir)
+test_labels = tf.one_hot(test_labels, depth=len(class_names))
 
-# Custom PyDataset class
-class PyDataset(tf.keras.utils.Sequence):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        # Your initialization code here
+train_dataset = tf.data.Dataset.from_tensor_slices((train_files, train_labels))
+train_dataset = train_dataset.map(lambda x, y: preprocess_image(x, y, augment=True)).batch(BATCH_SIZE).shuffle(1000)
 
-    def __len__(self):
-        # Return the number of batches per epoch
-        pass
+test_dataset = tf.data.Dataset.from_tensor_slices((test_files, test_labels))
+test_dataset = test_dataset.map(lambda x, y: preprocess_image(x, y)).batch(BATCH_SIZE)
 
-    def __getitem__(self, index):
-        # Generate one batch of data
-        pass
+# Define model
+class CNNModel(tf.Module):
+    def __init__(self):
+        self.conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation="relu")
+        self.pool1 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv2 = tf.keras.layers.Conv2D(64, (3, 3), activation="relu")
+        self.pool2 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.conv3 = tf.keras.layers.Conv2D(128, (3, 3), activation="relu")
+        self.pool3 = tf.keras.layers.MaxPooling2D((2, 2))
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(512, activation="relu")
+        self.dropout = tf.keras.layers.Dropout(0.5)
+        self.dense2 = tf.keras.layers.Dense(len(class_names), activation="softmax")
 
-    def on_epoch_end(self):
-        # Optional method to do something at the end of each epoch
-        pass
+    def __call__(self, x):
+        x = self.conv1(x)
+        x = self.pool1(x)
+        x = self.conv2(x)
+        x = self.pool2(x)
+        x = self.conv3(x)
+        x = self.pool3(x)
+        x = self.flatten(x)
+        x = self.dense1(x)
+        x = self.dropout(x)
+        return self.dense2(x)
 
-# Build the CNN model
-model = Sequential([
-    Input(shape=(IMG_HEIGHT, IMG_WIDTH, 3)),
-    Conv2D(32, (3, 3), activation='relu'),
-    MaxPooling2D(2, 2),
-    Conv2D(64, (3, 3), activation='relu'),
-    MaxPooling2D(2, 2),
-    Conv2D(128, (3, 3), activation='relu'),
-    MaxPooling2D(2, 2),
-    Flatten(),
-    Dense(512, activation='relu'),
-    Dropout(0.5),
-    Dense(4, activation='softmax')  # 4 classes: glioma, meningioma, pituitary, no tumor
-])
+model = CNNModel()
 
-# Compile the model
-model.compile(optimizer=Adam(learning_rate=0.001),
-              loss='categorical_crossentropy',
-              metrics=['accuracy'])
+# Loss and optimizer
+loss_fn = tf.keras.losses.CategoricalCrossentropy()
+optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
 
-# Train the model
-history = model.fit(
-    train_generator,
-    steps_per_epoch=train_generator.samples // BATCH_SIZE,
-    epochs=EPOCHS,
-    validation_data=validation_generator,
-    validation_steps=validation_generator.samples // BATCH_SIZE
-)
+# Training step
+@tf.function
+def train_step(model, images, labels):
+    with tf.GradientTape() as tape:
+        predictions = model(images, training=True)
+        loss = loss_fn(labels, predictions)
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    return loss
 
-# Evaluate the model
-test_loss, test_acc = model.evaluate(test_generator)
-print(f'Test accuracy: {test_acc:.4f}')
+# Evaluation step
+@tf.function
+def evaluate_model(model, dataset):
+    correct, total = 0, 0
+    for images, labels in dataset:
+        predictions = model(images, training=False)
+        correct += tf.reduce_sum(tf.cast(tf.argmax(predictions, axis=1) == tf.argmax(labels, axis=1), tf.float32))
+        total += images.shape[0]
+    return correct / total
 
-# Save the model
-model.save('brain_tumor_classification_model.keras')
+# Training loop
+for epoch in range(EPOCHS):
+    for images, labels in train_dataset:
+        train_loss = train_step(model, images, labels)
 
-# Plot training & validation accuracy values
-plt.figure(figsize=(12, 4))
-plt.subplot(1, 2, 1)
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
-plt.title('Model accuracy')
-plt.ylabel('Accuracy')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Validation'], loc='upper left')
+    val_acc = evaluate_model(model, test_dataset)
+    print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {train_loss.numpy():.4f}, Val Accuracy: {val_acc.numpy():.4f}")
 
-# Plot training & validation loss values
-plt.subplot(1, 2, 2)
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('Model loss')
-plt.ylabel('Loss')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Validation'], loc='upper left')
-
-plt.show()
+# Save model
+tf.saved_model.save(model, "brain_tumor_classification_model")

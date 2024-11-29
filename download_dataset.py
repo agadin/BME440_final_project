@@ -11,14 +11,14 @@ with open(os.path.expanduser('~/.kaggle/kaggle.json')) as f:
     kaggle_api = json.load(f)
 
 # Define the URL and headers for the request
-url = 'https://www.kaggle.com/api/v1/datasets/download/masoudnickparvar/brain-tumor-mri-dataset'
+url = 'https://www.kaggle.com/api/v1/datasets/download/sartajbhuvaji/brain-tumor-classification-mri'
 headers = {
     'Authorization': f"Bearer {kaggle_api['key']}"
 }
 
 # Download the dataset
 response = requests.get(url, headers=headers, stream=True)
-zip_path = os.path.join('dataset', 'brain-tumor-mri-dataset.zip')
+zip_path = os.path.join('dataset', 'brain-tumor-classification-mri.zip')
 
 # Save the dataset to the specified path
 with open(zip_path, 'wb') as f:
@@ -32,4 +32,5 @@ with zipfile.ZipFile(zip_path, 'r') as zip_ref:
 # Remove the zip file after extraction
 os.remove(zip_path)
 
-print(f"Dataset downloaded, unzipped, and saved to 'dataset' folder")
+# Output the absolute path to the dataset directory
+print(f"Dataset downloaded, unzipped, and saved to: {os.path.abspath('dataset')}")
