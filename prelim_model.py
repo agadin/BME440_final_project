@@ -44,7 +44,6 @@ def load_dataset(data_dir):
                 labels.append(idx)
     return file_paths, labels, class_names
 
-
 # Prepare data
 train_dir = os.path.join(DATASET_PATH, 'Training')
 test_dir = os.path.join(DATASET_PATH, 'Testing')
@@ -62,8 +61,10 @@ test_dataset = tf.data.Dataset.from_tensor_slices((test_files, test_labels))
 test_dataset = test_dataset.map(lambda x, y: preprocess_image(x, y)).batch(BATCH_SIZE)
 
 # Define model
-class CNNModel(tf.Module):
+class CNNModel(tf.keras.Model):
     def __init__(self):
+        super(CNNModel, self).__init__()
+        # Define layers
         self.conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation="relu")
         self.pool1 = tf.keras.layers.MaxPooling2D((2, 2))
         self.conv2 = tf.keras.layers.Conv2D(64, (3, 3), activation="relu")
@@ -75,7 +76,8 @@ class CNNModel(tf.Module):
         self.dropout = tf.keras.layers.Dropout(0.5)
         self.dense2 = tf.keras.layers.Dense(len(class_names), activation="softmax")
 
-    def __call__(self, x):
+    def call(self, x, training=False):
+        # Define forward pass
         x = self.conv1(x)
         x = self.pool1(x)
         x = self.conv2(x)
@@ -84,8 +86,10 @@ class CNNModel(tf.Module):
         x = self.pool3(x)
         x = self.flatten(x)
         x = self.dense1(x)
-        x = self.dropout(x)
-        return self.dense2(x)
+        if training:
+            x = self.dropout(x, training=True)
+        x = self.dense2(x)
+        return x
 
 model = CNNModel()
 
@@ -106,12 +110,18 @@ def train_step(model, images, labels):
 # Evaluation step
 @tf.function
 def evaluate_model(model, dataset):
-    correct, total = 0, 0
+    correct = 0.0  # Float for compatibility
+    total = 0
+
     for images, labels in dataset:
         predictions = model(images, training=False)
-        correct += tf.reduce_sum(tf.cast(tf.argmax(predictions, axis=1) == tf.argmax(labels, axis=1), tf.float32))
-        total += images.shape[0]
-    return correct / total
+        correct += tf.reduce_sum(
+            tf.cast(tf.argmax(predictions, axis=1) == tf.argmax(labels, axis=1), tf.float32)
+        )
+        total += tf.shape(images)[0]  # Use tf.shape to get dynamic batch size
+
+    accuracy = correct / tf.cast(total, tf.float32)
+    return accuracy
 
 # Training loop
 for epoch in range(EPOCHS):
@@ -122,4 +132,4 @@ for epoch in range(EPOCHS):
     print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {train_loss.numpy():.4f}, Val Accuracy: {val_acc.numpy():.4f}")
 
 # Save model
-tf.saved_model.save(model, "brain_tumor_classification_model")
+model.save("brain_tumor_classification_model")
