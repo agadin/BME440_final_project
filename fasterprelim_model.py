@@ -167,4 +167,4 @@ def plot_history(history):
 plot_history(history)
 
 # Save model
-model.save("brain_tumor_classification_model")
+model.save("brain_tumor_classification_model.h5")
