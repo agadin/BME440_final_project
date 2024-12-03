@@ -9,6 +9,9 @@ import tensorflow as tf
 import os
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+import visualkeras
+
+from PIL import ImageFont
 
 # Constants
 IMG_SIZE = 128
@@ -41,6 +44,9 @@ def build_model(input_shape, num_classes):
         layers.Dropout(0.5),
         layers.Dense(num_classes, activation="softmax"),
     ])
+    font = ImageFont.truetype("Arial.ttf", 32)  # using comic sans is strictly prohibited!
+
+    visualkeras.layered_view(model, to_file='img/fastprelim_model.png', legend=True, font= font).show()  # write and show
     return model
 
 # Data Preparation

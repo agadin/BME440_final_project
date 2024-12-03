@@ -18,13 +18,15 @@ from keras.src.layers.regularization.dropout import Dropout
 from keras.src.callbacks.early_stopping import EarlyStopping
 from keras.src.layers.core.dense import Dense
 from keras.src.models.model import Model
+import visualkeras
 
+from PIL import ImageFont
 # Set constants
 IMAGE_SIZE = 150
 BATCH_SIZE = 32
 EPOCHS = 10
-CLASS_NAMES = ['glioma', 'no_tumor', 'meningioma', 'pituitary']
-DATASET_PATH = '/Users/colehanan/PycharmProjects/BME440_final_project/dataset'
+CLASS_NAMES = ['glioma', 'notumor', 'meningioma', 'pituitary']
+DATASET_PATH = './dataset'
 
 
 def load_images_from_directory(data_path, labels, image_size):
@@ -70,6 +72,9 @@ def build_model(input_shape, num_classes):
     x = Dropout(rate=0.5)(x)
     output_layer = Dense(num_classes, activation='softmax')(x)
     model = Model(inputs=base_model.input, outputs=output_layer)
+    # server.launch(model)
+    font = ImageFont.truetype("Arial.ttf", 32)
+    visualkeras.layered_view(model, to_file='img/test_new_model_type_image_processing_v1_model.png', legend=True, font= font).show()
     return model
 
 

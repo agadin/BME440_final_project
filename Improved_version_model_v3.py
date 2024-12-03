@@ -19,6 +19,8 @@ import pandas as pd
 import re
 import os
 from sklearn.metrics import classification_report, confusion_matrix
+from PIL import ImageFont
+import visualkeras
 
 def get_prefix(filename):
     return re.sub(r'[^a-zA-Z0-9]', '_', os.path.splitext(filename)[0])
@@ -55,7 +57,7 @@ def merge_files(files, output):
             outfile.write("\n")
 
 # Your existing code
-DATASET_PATH = "/Users/colehanan/PycharmProjects/BME440_final_project/dataset"
+DATASET_PATH = "./dataset"
 TRAINING_PATH = os.path.join(DATASET_PATH, "Training")
 TESTING_PATH = os.path.join(DATASET_PATH, "Testing")
 
@@ -89,7 +91,7 @@ for path in [TRAINING_PATH, TESTING_PATH]:
 batch_size = 32
 image_size = (224, 224)
 learning_rate = 0.0001
-epochs = 20
+epochs = 5
 experiment_name = "brain_tumor_cnn"
 
 train_datagen = ImageDataGenerator(
@@ -148,6 +150,9 @@ cnn_model.compile(
     loss='categorical_crossentropy',
     metrics=['accuracy']
 )
+font = ImageFont.truetype("Arial.ttf", 32)
+visualkeras.layered_view(cnn_model, to_file='img/midmodelv3.png', legend=True,
+                         font=font).show()
 
 checkpoint_callback = ModelCheckpoint(
     filepath=f"{experiment_name}_best.keras",
@@ -162,7 +167,10 @@ history = cnn_model.fit(
     callbacks=[checkpoint_callback]
 )
 
-cnn_model.save(f"{experiment_name}.keras")  # Save in the native Keras format
+font = ImageFont.truetype("Arial.ttf", 32)
+visualkeras.layered_view(cnn_model, to_file='img/midmodelv3.png', legend=True,
+                         font=font).show()
+
 
 def plot_training_metrics(history):
     plt.figure(figsize=(12, 6))
