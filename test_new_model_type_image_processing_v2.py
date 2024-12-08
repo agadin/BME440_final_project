@@ -22,7 +22,7 @@ from keras.src.legacy.preprocessing.image import ImageDataGenerator
 # Set constants
 IMAGE_SIZE = 150
 BATCH_SIZE = 32
-EPOCHS = 12
+EPOCHS = 20
 CLASS_NAMES = ['glioma', 'no_tumor', 'meningioma', 'pituitary']
 DATASET_PATH = '/Users/colehanan/PycharmProjects/BME440_final_project/dataset'
 
