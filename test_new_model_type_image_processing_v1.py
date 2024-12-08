@@ -18,14 +18,13 @@ from keras.src.layers.regularization.dropout import Dropout
 from keras.src.callbacks.early_stopping import EarlyStopping
 from keras.src.layers.core.dense import Dense
 from keras.src.models.model import Model
-import visualkeras
+from keras.models import load_model
 
-from PIL import ImageFont
 # Set constants
 IMAGE_SIZE = 150
 BATCH_SIZE = 32
-EPOCHS = 10
-CLASS_NAMES = ['glioma', 'notumor', 'meningioma', 'pituitary']
+EPOCHS = 1
+CLASS_NAMES = ['glioma', 'no_tumor', 'meningioma', 'pituitary']
 DATASET_PATH = './dataset'
 
 
@@ -72,16 +71,10 @@ def build_model(input_shape, num_classes):
     x = Dropout(rate=0.5)(x)
     output_layer = Dense(num_classes, activation='softmax')(x)
     model = Model(inputs=base_model.input, outputs=output_layer)
-    # server.launch(model)
-    font = ImageFont.truetype("Arial.ttf", 32)
-    visualkeras.layered_view(model, to_file='img/test_new_model_type_image_processing_v1_model.png', legend=True, font= font).show()
     return model
 
 
 def plot_training_history(history):
-    """
-    Plots training and validation accuracy/loss over epochs.
-    """
     plt.figure(figsize=(12, 5))
 
     # Accuracy plot
@@ -107,9 +100,6 @@ def plot_training_history(history):
 
 
 def plot_roc_curve(true_labels, predicted_probs, class_names):
-    """
-    Plots ROC curves for each class.
-    """
     plt.figure(figsize=(10, 8))
     for i, class_name in enumerate(class_names):
         fpr, tpr, _ = roc_curve(true_labels[:, i], predicted_probs[:, i])
@@ -125,9 +115,6 @@ def plot_roc_curve(true_labels, predicted_probs, class_names):
 
 
 def create_best_epoch_table(history):
-    """
-    Creates a table displaying the stats from the best epoch.
-    """
     best_epoch_idx = np.argmax(history.history['val_accuracy'])
     best_epoch_data = {
         "Metric": ["Accuracy", "Loss", "Val Accuracy", "Val Loss"],
@@ -146,9 +133,6 @@ def create_best_epoch_table(history):
 
 
 def plot_confusion_matrix(true_labels, predicted_labels, class_names):
-    """
-    Plots a confusion matrix.
-    """
     conf_matrix = confusion_matrix(true_labels, predicted_labels)
     conf_matrix_normalized = conf_matrix.astype('float') / conf_matrix.sum(axis=1)[:, np.newaxis]
 
@@ -161,62 +145,89 @@ def plot_confusion_matrix(true_labels, predicted_labels, class_names):
     plt.show()
 
 
+def occlusion_sensitivity(model, image, occlusion_size=15, stride=10):
+    heatmap = np.zeros((image.shape[0], image.shape[1]))
+    original_pred = model.predict(np.expand_dims(image, axis=0))[0]
+    class_idx = np.argmax(original_pred)
+
+    for y in range(0, image.shape[0] - occlusion_size + 1, stride):
+        for x in range(0, image.shape[1] - occlusion_size + 1, stride):
+            occluded_image = image.copy()
+            occluded_image[y:y+occlusion_size, x:x+occlusion_size, :] = 0
+            pred = model.predict(np.expand_dims(occluded_image, axis=0))[0]
+            heatmap[y:y+occlusion_size, x:x+occlusion_size] = original_pred[class_idx] - pred[class_idx]
+
+    heatmap = np.maximum(heatmap, 0)
+    heatmap /= heatmap.max()
+    return heatmap
+
+
+
+
+
+def save_occlusion_video_across_epochs(images, output_dir, epochs, model_dir, occlusion_size=15, stride=10):
+    os.makedirs(output_dir, exist_ok=True)
+
+    for img_idx, image in enumerate(images):
+        # Video writer for this image
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        video_path = os.path.join(output_dir, f"occlusion_image_{img_idx + 1}.avi")
+        video = cv2.VideoWriter(video_path, fourcc, 1, (image.shape[1], image.shape[0]))
+
+        print(f"Processing image {img_idx + 1}/{len(images)}...")
+
+        for epoch in range(1, epochs + 1):
+            print(f" - Epoch {epoch}")
+
+            # Load the model for the current epoch
+            model_path = os.path.join(model_dir, f"model_epoch_{epoch:02d}.h5")
+            model = load_model(model_path)
+
+            # Generate occlusion sensitivity heatmap
+            heatmap = occlusion_sensitivity(model, image, occlusion_size, stride)
+            heatmap = (heatmap * 255).astype(np.uint8)
+            heatmap_colored = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+            combined_frame = cv2.addWeighted((image * 255).astype(np.uint8), 0.6, heatmap_colored, 0.4, 0)
+
+            # Annotate frame with epoch number
+            cv2.putText(
+                combined_frame,
+                f"Epoch {epoch}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+            video.write(combined_frame)
+
+        video.release()
+        print(f"Video saved at {video_path}")
+
+
 def main():
-    # Preprocess the dataset
     X_train, X_val, X_test, y_train, y_val, y_test = preprocess_dataset()
 
-    # Build the model
     model = build_model(input_shape=(IMAGE_SIZE, IMAGE_SIZE, 3), num_classes=len(CLASS_NAMES))
-    model.summary()
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-    # Compile the model
-    model.compile(
-        loss='categorical_crossentropy',
-        optimizer='adam',
-        metrics=['accuracy']
-    )
+    model_dir = "./models"
+    os.makedirs(model_dir, exist_ok=True)
 
-    # Callbacks for optimization
     callbacks = [
         TensorBoard(log_dir='logs'),
-        ModelCheckpoint("best_model.keras", monitor="val_accuracy", save_best_only=True, mode="auto", verbose=1),
-        ReduceLROnPlateau(monitor='val_accuracy', factor=0.3, patience=2, min_delta=0.001, mode='auto', verbose=1),
-        EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True, verbose=1)
+        ModelCheckpoint(os.path.join(model_dir, "model_epoch_{epoch:02d}.h5"), save_best_only=False),
+        ReduceLROnPlateau(monitor='val_accuracy', factor=0.3, patience=2, min_delta=0.001),
+        EarlyStopping(monitor='val_accuracy', patience=5, restore_best_weights=True)
     ]
 
-    # Train the model
-    history = model.fit(
-        X_train, y_train,
-        validation_data=(X_val, y_val),
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-        verbose=1,
-        callbacks=callbacks
-    )
+    history = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=12, batch_size=BATCH_SIZE, callbacks=callbacks)
 
-    # Evaluate the model
-    predictions = model.predict(X_test)
-    predicted_classes = np.argmax(predictions, axis=1)
-    true_classes = np.argmax(y_test, axis=1)
-
-    print("\nClassification Report:\n")
-    print(classification_report(true_classes, predicted_classes, target_names=CLASS_NAMES))
-
-    # Save test data for future use
-    np.save("/Users/colehanan/PycharmProjects/BME440_final_project/test_data.npy", X_test)
-    np.save("/Users/colehanan/PycharmProjects/BME440_final_project/test_labels.npy", y_test)
-
-    # Plot the confusion matrix
-    plot_confusion_matrix(true_classes, predicted_classes, CLASS_NAMES)
-
-    # Plot training history
-    plot_training_history(history)
-
-    # Create a table for the best epoch
-    create_best_epoch_table(history)
-
-    # Plot ROC curves
-    plot_roc_curve(y_test, predictions, CLASS_NAMES)
+    # Generate videos for six selected images from the test set
+    selected_images = X_test[:6]
+    save_occlusion_video_across_epochs(selected_images, "./occlusion_videos", epochs=12, model_dir=model_dir)
 
 
 if __name__ == "__main__":

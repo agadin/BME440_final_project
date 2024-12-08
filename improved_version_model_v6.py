@@ -20,6 +20,9 @@ import collections
 from keras.src.layers.core.input_layer import Input
 from keras.src.layers.regularization.dropout import Dropout
 from keras.src.callbacks.early_stopping import EarlyStopping
+import visualkeras
+
+from PIL import ImageFont
 
 warnings.filterwarnings("ignore")
 
@@ -104,7 +107,7 @@ def merge_files(files, output):
 
 
 # Your existing code
-DATASET_PATH = "/Users/colehanan/PycharmProjects/BME440_final_project/dataset"
+DATASET_PATH = "./dataset"
 TRAINING_PATH = os.path.join(DATASET_PATH, "Training")
 TESTING_PATH = os.path.join(DATASET_PATH, "Testing")
 
@@ -194,6 +197,8 @@ cnn_model.compile(
     metrics=['accuracy']
 )
 
+font = ImageFont.truetype("Arial.ttf", 32)
+visualkeras.layered_view(cnn_model, to_file='img/v6model.png', legend=True, font=font).show()
 checkpoint_callback = ModelCheckpoint(
     filepath=f"{experiment_name}_best.keras",
     save_best_only=True,
